@@ -1,0 +1,8 @@
+backend/tests/
+.pytest_cache/
+*.png
+*.jpg
+*.jpeg
+*.webp
+.git
+.github
