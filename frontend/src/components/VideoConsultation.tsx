@@ -5,27 +5,39 @@ import {
   Mic,
   MicOff,
   PhoneOff,
-  Shield
+  Shield,
+  RefreshCw
 } from 'lucide-react';
 import Peer from 'peerjs';
+import { getWebRTCConfig, endConsultation, startCall } from '../api';
+import type { WebRTCConfig } from '../types';
 
 interface VideoConsultationProps {
   role: 'doctor' | 'patient';
   sessionId: string;
+  doctorId?: string;
+  targetDoctorPeerId?: string;
   onStreamReady?: (stream: MediaStream) => void;
+  onCallEnded?: () => void;
+  onSessionDetected?: (sessionId: string) => void;
 }
 
 export const VideoConsultation: React.FC<VideoConsultationProps> = ({
   role,
   sessionId,
-  onStreamReady
+  doctorId,
+  targetDoctorPeerId,
+  onStreamReady,
+  onCallEnded,
+  onSessionDetected
 }) => {
   const [hasConsent, setHasConsent] = useState(false);
   const [callActive, setCallActive] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [cameraOff, setCameraOff] = useState(false);
+  const [reconnectSeconds, setReconnectSeconds] = useState<number | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<
-    'idle' | 'initializing' | 'waiting' | 'connected' | 'error'
+    'idle' | 'initializing' | 'waiting' | 'connected' | 'reconnecting' | 'error'
   >('idle');
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -33,11 +45,17 @@ export const VideoConsultation: React.FC<VideoConsultationProps> = ({
   const localStreamRef = useRef<MediaStream | null>(null);
   const peerRef = useRef<Peer | null>(null);
   const callRef = useRef<any>(null);
+  const reconnectTimerRef = useRef<any>(null);
 
-  // Peer IDs based on session
+  // Requirement 1 & 3: Doctor's PeerJS ID is 'doctor-<id>'
   const cleanSession = sessionId.replace(/[^a-zA-Z0-9_-]/g, '');
-  const myPeerId = `cc-${cleanSession}-${role}`;
-  const targetPeerId = `cc-${cleanSession}-${role === 'doctor' ? 'patient' : 'doctor'}`;
+  const cleanDoctorId = doctorId ? doctorId.replace(/[^a-zA-Z0-9_-]/g, '') : null;
+  
+  const myPeerId = role === 'doctor'
+    ? (cleanDoctorId ? `doctor-${cleanDoctorId}` : `doctor-${cleanSession}`)
+    : `patient-${cleanSession}-${Math.floor(Math.random() * 9000 + 1000)}`;
+
+  const targetPeerId = targetDoctorPeerId || (cleanDoctorId ? `doctor-${cleanDoctorId}` : `doctor-${cleanSession}`);
 
   // Helper to generate synthetic stream if physical webcam is inaccessible
   const createSyntheticStream = (): MediaStream => {
@@ -133,21 +151,45 @@ export const VideoConsultation: React.FC<VideoConsultationProps> = ({
       onStreamReady(stream);
     }
 
+    // Fetch dynamic WebRTC configuration (STUN + TURN)
+    let webrtcConfig: WebRTCConfig = {
+      ice_servers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ],
+      peerjs_host: null,
+      peerjs_port: null,
+      peerjs_path: null
+    };
+    try {
+      webrtcConfig = await getWebRTCConfig();
+    } catch (_) {}
+
+    const peerOpts: any = {
+      debug: 1,
+      config: {
+        iceServers: webrtcConfig.ice_servers
+      }
+    };
+    if (webrtcConfig.peerjs_host) {
+      peerOpts.host = webrtcConfig.peerjs_host;
+      peerOpts.port = webrtcConfig.peerjs_port || 9000;
+      peerOpts.path = webrtcConfig.peerjs_path || '/';
+    }
+
     // Initialize PeerJS
     try {
       if (peerRef.current) {
         peerRef.current.destroy();
       }
 
-      const peer = new Peer(myPeerId, {
-        debug: 1
-      });
+      const peer = new Peer(myPeerId, peerOpts);
 
       peer.on('open', () => {
         setConnectionStatus('waiting');
         setCallActive(true);
 
-        // If patient, attempt to call doctor
+        // If patient, attempt to call doctor with metadata
         if (role === 'patient') {
           setTimeout(() => {
             initiateCall(peer, stream);
@@ -155,12 +197,23 @@ export const VideoConsultation: React.FC<VideoConsultationProps> = ({
         }
       });
 
-      // Handle incoming call
+      // Handle incoming call with session metadata
       peer.on('call', (incomingCall) => {
+        const metaSessionId = incomingCall.metadata?.sessionId;
+        if (metaSessionId && onSessionDetected) {
+          onSessionDetected(metaSessionId);
+        }
+
         incomingCall.answer(stream);
         callRef.current = incomingCall;
+        startCall(metaSessionId || sessionId).catch(() => {});
 
         incomingCall.on('stream', (remoteStream: MediaStream) => {
+          if (reconnectTimerRef.current) {
+            clearInterval(reconnectTimerRef.current);
+            reconnectTimerRef.current = null;
+            setReconnectSeconds(null);
+          }
           if (remoteVideoRef.current) {
             remoteVideoRef.current.srcObject = remoteStream;
           }
@@ -168,14 +221,14 @@ export const VideoConsultation: React.FC<VideoConsultationProps> = ({
         });
 
         incomingCall.on('close', () => {
-          setConnectionStatus('waiting');
+          // Reconnection grace period (60s)
+          handleStreamDrop();
         });
       });
 
       peer.on('error', (err: any) => {
-        // If ID is already taken (e.g. reload), fallback to random ID
         if (err.type === 'unavailable-id') {
-          const fallbackPeer = new Peer({ debug: 1 });
+          const fallbackPeer = new Peer(peerOpts);
           fallbackPeer.on('open', () => {
             setConnectionStatus('waiting');
             setCallActive(true);
@@ -200,19 +253,47 @@ export const VideoConsultation: React.FC<VideoConsultationProps> = ({
     }
   };
 
+  const handleStreamDrop = () => {
+    setConnectionStatus('reconnecting');
+    setReconnectSeconds(60);
+    if (reconnectTimerRef.current) clearInterval(reconnectTimerRef.current);
+
+    reconnectTimerRef.current = setInterval(() => {
+      setReconnectSeconds((prev) => {
+        if (prev === null || prev <= 1) {
+          clearInterval(reconnectTimerRef.current);
+          handleEndCall();
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
   const initiateCall = (peer: Peer, stream: MediaStream) => {
     try {
-      const outgoingCall = peer.call(targetPeerId, stream);
+      // Pass { metadata: { sessionId } } so doctor opens the matched session
+      const outgoingCall = peer.call(targetPeerId, stream, {
+        metadata: { sessionId }
+      });
       if (outgoingCall) {
         callRef.current = outgoingCall;
+        startCall(sessionId).catch(() => {});
+
         outgoingCall.on('stream', (remoteStream: MediaStream) => {
+          if (reconnectTimerRef.current) {
+            clearInterval(reconnectTimerRef.current);
+            reconnectTimerRef.current = null;
+            setReconnectSeconds(null);
+          }
           if (remoteVideoRef.current) {
             remoteVideoRef.current.srcObject = remoteStream;
           }
           setConnectionStatus('connected');
         });
+
         outgoingCall.on('close', () => {
-          setConnectionStatus('waiting');
+          handleStreamDrop();
         });
       }
     } catch (e) {
@@ -236,7 +317,11 @@ export const VideoConsultation: React.FC<VideoConsultationProps> = ({
     }
   };
 
-  const handleEndCall = () => {
+  const handleEndCall = async () => {
+    if (reconnectTimerRef.current) {
+      clearInterval(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
     if (callRef.current) {
       try {
         callRef.current.close();
@@ -248,12 +333,21 @@ export const VideoConsultation: React.FC<VideoConsultationProps> = ({
     if (peerRef.current) {
       peerRef.current.destroy();
     }
+    try {
+      await endConsultation(sessionId);
+    } catch (_) {}
+
     setCallActive(false);
     setConnectionStatus('idle');
+    setReconnectSeconds(null);
+    onCallEnded?.();
   };
 
   useEffect(() => {
     return () => {
+      if (reconnectTimerRef.current) {
+        clearInterval(reconnectTimerRef.current);
+      }
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((t) => t.stop());
       }
@@ -276,7 +370,12 @@ export const VideoConsultation: React.FC<VideoConsultationProps> = ({
 
         {/* Status Badge */}
         <div className="flex items-center gap-2">
-          {connectionStatus === 'connected' ? (
+          {connectionStatus === 'reconnecting' ? (
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded bg-[#fef2f2] text-[#b91c1c] border border-[#fca5a5]">
+              <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+              <span>Reconnecting ({reconnectSeconds}s grace)</span>
+            </span>
+          ) : connectionStatus === 'connected' ? (
             <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded bg-[#f0fdf4] text-[#166534] border border-[#bbf7d0]">
               <span className="w-1.5 h-1.5 rounded-full bg-[#16a34a] animate-pulse"></span>
               <span>Encrypted WebRTC Connected</span>

@@ -17,10 +17,23 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI, HTTPException, Body, Response, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
+import json
+import asyncio
 
-from backend.app.schemas import ExtractRequest, ExtractResponse
+from backend.app.schemas import (
+    ExtractRequest,
+    ExtractResponse,
+    DoctorRegisterRequest,
+    DoctorHeartbeatRequest,
+    ConsultRequest,
+    ConsultResponse,
+    WaitingPatientItem,
+    EndConsultRequest,
+    WebRTCConfigResponse
+)
 from backend.app.extractor import ClinicalExtractor
 from backend.app.state import session_store
 from backend.app.rule_engine import RuleEngine
@@ -30,6 +43,7 @@ from backend.app.summary import (
     generate_consultation_pdf
 )
 from backend.app.skin_triage import analyze_skin_photo
+from backend.app.queue_manager import doctor_registry, queue_manager
 
 app = FastAPI(
     title="ClearConsult Telemedicine API",
@@ -338,4 +352,167 @@ async def triage_skin_photo(
         model_name=extractor.model_name
     )
     return result
+
+
+# =========================================================================
+# MULTI-CONSULTATION: DOCTOR REGISTRY, QUEUE, MATCHING & WEBRTC
+# =========================================================================
+
+@app.post("/doctors/register")
+def register_doctor(req: DoctorRegisterRequest):
+    """Registers a doctor or updates presence. PeerJS ID is doctor-<id>."""
+    return doctor_registry.register(req.id, req.name, req.specialty)
+
+
+@app.post("/doctors/{doctor_id}/heartbeat")
+def doctor_heartbeat(doctor_id: str):
+    """Doctor keeps presence active. If missed > 15s, doctor flips to offline."""
+    doc = doctor_registry.heartbeat(doctor_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Doctor '{doctor_id}' not found.")
+    return doc
+
+
+@app.get("/doctors")
+def list_doctors():
+    """Live registry of doctors with statuses (available | busy | offline)."""
+    return doctor_registry.list_doctors()
+
+
+@app.get("/doctors/{doctor_id}/sessions")
+def get_doctor_recent_sessions(doctor_id: str):
+    """Returns recent sessions for doctor sidebar navigation."""
+    doc = doctor_registry.get_doctor(doctor_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Doctor '{doctor_id}' not found.")
+    recent_ids = doc.get("recent_sessions", [])
+    summaries = []
+    for sid in recent_ids:
+        s = session_store.get_session(sid)
+        if s:
+            summaries.append({
+                "session_id": sid,
+                "patient_name": s.get("patient_name", "Anonymous Patient"),
+                "language": s.get("language", "en"),
+                "status": s.get("status", "ended"),
+                "started_at": s.get("started_at"),
+                "ended_at": s.get("ended_at"),
+                "chief_complaint": (s.get("extracted_fields") or {}).get("chief_complaint", {}).get("value")
+            })
+    return summaries
+
+
+@app.post("/consults", response_model=ConsultResponse)
+def request_consultation(req: ConsultRequest):
+    """
+    Patient presses 'Request consultation'.
+    Matches first available doctor, or enqueues patient with live queue position.
+    """
+    return queue_manager.request_consultation(
+        session_id=req.session_id,
+        patient_id=req.patient_id,
+        patient_name=req.patient_name,
+        language=req.language
+    )
+
+
+@app.get("/consults/queue", response_model=List[WaitingPatientItem])
+def get_waiting_queue():
+    """Returns the live waiting list for doctors, sorted by wait time with red flags."""
+    return queue_manager.get_waiting_list()
+
+
+@app.get("/consults/{session_id}/status", response_model=ConsultResponse)
+def get_consult_status(session_id: str):
+    """Real-time status check for patient waiting room (queue position / matched doctor)."""
+    return queue_manager.get_status(session_id)
+
+
+@app.post("/consults/{session_id}/accept", response_model=ConsultResponse)
+def accept_patient(session_id: str, payload: Dict[str, str] = Body(...)):
+    """Doctor manually accepts a patient from the waiting list."""
+    doctor_id = payload.get("doctor_id")
+    if not doctor_id:
+        raise HTTPException(status_code=400, detail="Missing 'doctor_id'")
+    try:
+        return queue_manager.accept_patient(doctor_id, session_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/consults/{session_id}/start")
+def start_call(session_id: str):
+    """Signals that WebRTC peer connection has started."""
+    queue_manager.start_call(session_id)
+    return {"status": "in_call", "session_id": session_id}
+
+
+@app.post("/consults/{session_id}/end")
+def end_consultation(session_id: str, req: Optional[EndConsultRequest] = None):
+    """
+    Hangs up consultation.
+    Cleans up session, marks doctor available, and auto-matches next waiting patient.
+    """
+    reason = req.reason if req else "completed"
+    return queue_manager.end_consultation(session_id, reason)
+
+
+@app.get("/config/webrtc", response_model=WebRTCConfigResponse)
+def get_webrtc_config():
+    """
+    Exposes STUN and configurable TURN servers (TURN_URL, TURN_USER, TURN_PASS).
+    Allows self-hosting PeerJS server if PEERJS_HOST / PEERJS_PORT configured.
+    """
+    turn_url = os.environ.get("TURN_URL")
+    turn_user = os.environ.get("TURN_USER")
+    turn_pass = os.environ.get("TURN_PASS")
+
+    ice_servers = [
+        {"urls": "stun:stun.l.google.com:19302"},
+        {"urls": "stun:stun1.l.google.com:19302"}
+    ]
+    if turn_url:
+        turn_entry: Dict[str, Any] = {"urls": turn_url}
+        if turn_user:
+            turn_entry["username"] = turn_user
+        if turn_pass:
+            turn_entry["credential"] = turn_pass
+        ice_servers.append(turn_entry)
+
+    peerjs_host = os.environ.get("PEERJS_HOST")
+    peerjs_port = int(os.environ.get("PEERJS_PORT")) if os.environ.get("PEERJS_PORT") else None
+    peerjs_path = os.environ.get("PEERJS_PATH")
+
+    return WebRTCConfigResponse(
+        ice_servers=ice_servers,
+        peerjs_host=peerjs_host,
+        peerjs_port=peerjs_port,
+        peerjs_path=peerjs_path
+    )
+
+
+@app.post("/demo/seed-multi-room")
+def seed_multi_room():
+    """
+    One-click demo seed:
+    Creates 3 doctors (Dr. Aravind, Dr. Priya, Dr. Rajesh) and 4 queued patients with realistic triage data.
+    """
+    return queue_manager.seed_multi_room()
+
+
+@app.get("/events")
+async def stream_events():
+    """Server-Sent Events (SSE) stream for live presence and waiting queue updates."""
+    async def event_generator():
+        while True:
+            data = {
+                "doctors": doctor_registry.list_doctors(),
+                "queue": [item.model_dump() for item in queue_manager.get_waiting_list()],
+                "timestamp": time.time()
+            }
+            yield f"data: {json.dumps(data)}\n\n"
+            await asyncio.sleep(2.0)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
 

@@ -78,6 +78,60 @@ export interface SessionState {
     doctor: string | null;
     patient: string | null;
   };
+  patient_id?: string | null;
+  patient_name?: string;
+  status?: ConsultStatus;
+  assigned_doctor_id?: string | null;
+  queued_at?: number | null;
+  started_at?: number | null;
+  ended_at?: number | null;
   created_at: number;
   updated_at: number;
 }
+
+export type DoctorStatus = "available" | "busy" | "offline";
+export type ConsultStatus = "intake" | "waiting" | "matched" | "in_call" | "ended";
+
+export interface DoctorRecord {
+  id: string;
+  name: string;
+  status: DoctorStatus;
+  peer_id: string;
+  current_session_id?: string | null;
+  last_heartbeat: number;
+  recent_sessions: string[];
+  specialty?: string;
+}
+
+export interface ConsultResponse {
+  session_id: string;
+  patient_id: string;
+  status: ConsultStatus;
+  assigned_doctor_id?: string | null;
+  assigned_doctor_name?: string | null;
+  assigned_doctor_peer_id?: string | null;
+  queue_position: number;
+}
+
+export interface WaitingPatientItem {
+  session_id: string;
+  patient_id: string;
+  patient_name: string;
+  wait_seconds: number;
+  chief_complaint?: string | null;
+  needs_attention: NeedsAttentionItem[];
+  language: string;
+  queued_at: number;
+}
+
+export interface WebRTCConfig {
+  ice_servers: Array<{
+    urls: string | string[];
+    username?: string;
+    credential?: string;
+  }>;
+  peerjs_host?: string | null;
+  peerjs_port?: number | null;
+  peerjs_path?: string | null;
+}
+

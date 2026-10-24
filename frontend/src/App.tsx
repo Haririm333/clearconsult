@@ -107,6 +107,13 @@ export function App() {
             sessionId={sessionId}
             sessionState={sessionState}
             onRefresh={refreshSession}
+            onSelectSession={(newId) => {
+              setSessionId(newId);
+              const url = new URL(window.location.href);
+              url.searchParams.set('session', newId);
+              window.history.replaceState({}, '', url.toString());
+              refreshSession();
+            }}
             isLoading={isLoading}
             onOpenGuides={() => setIsGuidesOpen(true)}
             onOpenSkinTriage={() => setIsSkinTriageOpen(true)}

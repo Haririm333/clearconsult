@@ -55,3 +55,72 @@ class ExtractResponse(BaseModel):
     emergency_alert: Optional[Dict[str, Any]] = None
     is_emergency: bool = False
     all_key_fields_known: bool = False
+
+
+# =========================================================================
+# Multi-Consultation & Queue Schemas
+# =========================================================================
+
+DoctorStatus = Literal["available", "busy", "offline"]
+ConsultStatus = Literal["intake", "waiting", "matched", "in_call", "ended"]
+
+
+class DoctorRecord(BaseModel):
+    id: str
+    name: str
+    status: DoctorStatus = "available"
+    peer_id: str
+    current_session_id: Optional[str] = None
+    last_heartbeat: float
+    recent_sessions: List[str] = Field(default_factory=list)
+    specialty: Optional[str] = None
+
+
+class DoctorRegisterRequest(BaseModel):
+    id: str
+    name: str
+    specialty: Optional[str] = "General Medicine"
+
+
+class DoctorHeartbeatRequest(BaseModel):
+    id: str
+
+
+class ConsultRequest(BaseModel):
+    session_id: str
+    patient_id: Optional[str] = None
+    patient_name: Optional[str] = "Anonymous Patient"
+    language: Literal["en", "ta", "hi"] = "en"
+
+
+class ConsultResponse(BaseModel):
+    session_id: str
+    patient_id: str
+    status: ConsultStatus
+    assigned_doctor_id: Optional[str] = None
+    assigned_doctor_name: Optional[str] = None
+    assigned_doctor_peer_id: Optional[str] = None
+    queue_position: int = 0  # 0 if matched or not in queue, >= 1 if in queue
+
+
+class WaitingPatientItem(BaseModel):
+    session_id: str
+    patient_id: str
+    patient_name: str
+    wait_seconds: int
+    chief_complaint: Optional[str] = None
+    needs_attention: List[NeedsAttentionItem] = Field(default_factory=list)
+    language: str = "en"
+    queued_at: float
+
+
+class EndConsultRequest(BaseModel):
+    reason: Optional[str] = "completed"
+
+
+class WebRTCConfigResponse(BaseModel):
+    ice_servers: List[Dict[str, Any]]
+    peerjs_host: Optional[str] = None
+    peerjs_port: Optional[int] = None
+    peerjs_path: Optional[str] = None
+

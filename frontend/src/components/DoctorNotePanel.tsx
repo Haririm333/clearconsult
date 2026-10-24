@@ -12,12 +12,16 @@ import { getDoctorNote, updateDoctorNote, confirmDoctorNote, getExportPdfUrl } f
 
 interface DoctorNotePanelProps {
   sessionId: string;
+  doctorName?: string;
   onNoteConfirmed?: () => void;
+  onNoteUpdated?: () => void;
 }
 
 export const DoctorNotePanel: React.FC<DoctorNotePanelProps> = ({
   sessionId,
-  onNoteConfirmed
+  doctorName = 'Attending Clinician (Dr. Verified)',
+  onNoteConfirmed,
+  onNoteUpdated
 }) => {
   const [note, setNote] = useState<any>({
     complaint: '',
@@ -55,6 +59,7 @@ export const DoctorNotePanel: React.FC<DoctorNotePanelProps> = ({
       setIsEditing(false);
       setJustSaved(true);
       setTimeout(() => setJustSaved(false), 2000);
+      if (onNoteUpdated) onNoteUpdated();
     } catch (err) {
       console.error(err);
     } finally {
@@ -67,12 +72,13 @@ export const DoctorNotePanel: React.FC<DoctorNotePanelProps> = ({
     try {
       const res = await confirmDoctorNote(
         sessionId,
-        'Dr. Clinician (Verified)',
+        doctorName,
         note.doctor_instructions
       );
       setNote(res.doctor_note);
       setIsEditing(false);
       if (onNoteConfirmed) onNoteConfirmed();
+      if (onNoteUpdated) onNoteUpdated();
     } catch (err) {
       console.error(err);
     } finally {

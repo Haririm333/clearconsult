@@ -14,6 +14,10 @@ class SessionStore:
         if session_id not in self._sessions:
             self._sessions[session_id] = {
                 "session_id": session_id,
+                "patient_id": None,
+                "patient_name": "Anonymous Patient",
+                "status": "intake",  # "intake" | "waiting" | "matched" | "in_call" | "ended"
+                "assigned_doctor_id": None,
                 "language": "en",
                 "conversation_history": [],
                 "extracted_fields": {
@@ -54,6 +58,9 @@ class SessionStore:
                     "doctor": None,
                     "patient": None
                 },
+                "queued_at": None,
+                "started_at": None,
+                "ended_at": None,
                 "created_at": time.time(),
                 "updated_at": time.time()
             }
@@ -74,6 +81,12 @@ class SessionStore:
         })
         session["updated_at"] = time.time()
         return session
+
+    def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        return self._sessions.get(session_id)
+
+    def list_sessions(self) -> List[Dict[str, Any]]:
+        return list(self._sessions.values())
 
     def reset_session(self, session_id: str):
         if session_id in self._sessions:

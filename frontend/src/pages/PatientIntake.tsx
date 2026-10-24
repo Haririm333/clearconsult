@@ -12,10 +12,20 @@ import {
   ChevronRight,
   Video,
   Camera,
-  BookOpen
+  BookOpen,
+  PhoneCall,
+  Stethoscope,
+  Users,
+  RefreshCw
 } from 'lucide-react';
 import type { SessionState } from '../types';
-import { extractMissingInfo, skipField, loadTamilDemoScenario } from '../api';
+import {
+  extractMissingInfo,
+  skipField,
+  loadTamilDemoScenario,
+  requestConsultation,
+  getConsultStatus
+} from '../api';
 import { SpeechMic } from '../components/SpeechMic';
 import { EmergencyBanner } from '../components/EmergencyBanner';
 import { ConsentNotice } from '../components/ConsentNotice';
@@ -45,6 +55,12 @@ export const PatientIntake: React.FC<PatientIntakeProps> = ({
   const [emergencyReason, setEmergencyReason] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'intake' | 'video' | 'instructions'>('intake');
 
+  // Consultation Queue State
+  const [consultStatus, setConsultStatus] = useState<'intake' | 'waiting' | 'matched' | 'in_call' | 'ended'>('intake');
+  const [queuePosition, setQueuePosition] = useState<number>(0);
+  const [assignedDoctor, setAssignedDoctor] = useState<{ id: string; name: string; peer_id: string } | null>(null);
+  const [isRequestingConsult, setIsRequestingConsult] = useState(false);
+
   // Sync language with session when session updates
   useEffect(() => {
     if (sessionState?.language && ['en', 'ta', 'hi'].includes(sessionState.language)) {
@@ -54,7 +70,63 @@ export const PatientIntake: React.FC<PatientIntakeProps> = ({
       setEmergencyDetected(true);
       setEmergencyReason(sessionState.emergency_alert?.alert_message || null);
     }
+    if (sessionState?.status) {
+      setConsultStatus(sessionState.status);
+    }
   }, [sessionState]);
+
+  // Queue status polling when waiting
+  useEffect(() => {
+    if (consultStatus !== 'waiting') return;
+    const interval = setInterval(async () => {
+      try {
+        const status = await getConsultStatus(sessionId);
+        setConsultStatus(status.status);
+        setQueuePosition(status.queue_position);
+
+        if (status.status === 'matched' && status.assigned_doctor_id) {
+          setAssignedDoctor({
+            id: status.assigned_doctor_id,
+            name: status.assigned_doctor_name || 'Attending Clinician',
+            peer_id: status.assigned_doctor_peer_id || `doctor-${status.assigned_doctor_id}`
+          });
+          setActiveTab('video');
+          onRefreshSession();
+        }
+      } catch (e) {
+        console.warn('Queue status poll error:', e);
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [consultStatus, sessionId, onRefreshSession]);
+
+  const handleRequestConsultation = async () => {
+    setIsRequestingConsult(true);
+    try {
+      const res = await requestConsultation(
+        sessionId,
+        sessionState?.patient_id || undefined,
+        sessionState?.patient_name || 'Patient',
+        selectedLang
+      );
+      setConsultStatus(res.status);
+      setQueuePosition(res.queue_position);
+
+      if (res.status === 'matched' && res.assigned_doctor_id) {
+        setAssignedDoctor({
+          id: res.assigned_doctor_id,
+          name: res.assigned_doctor_name || 'Attending Clinician',
+          peer_id: res.assigned_doctor_peer_id || `doctor-${res.assigned_doctor_id}`
+        });
+        setActiveTab('video');
+      }
+      onRefreshSession();
+    } catch (err) {
+      console.error('Request consult failed:', err);
+    } finally {
+      setIsRequestingConsult(false);
+    }
+  };
 
   // Client-side instant emergency detector
   const checkInstantEmergency = (text: string): boolean => {
@@ -266,11 +338,52 @@ export const PatientIntake: React.FC<PatientIntakeProps> = ({
       {activeTab === 'instructions' ? (
         <PatientInstructionsScreen sessionId={sessionId} language={selectedLang} />
       ) : activeTab === 'video' ? (
-        <div className="mb-6">
-          <VideoConsultation role="patient" sessionId={sessionId} />
+        <div className="mb-6 space-y-4">
+          {assignedDoctor && (
+            <div className="p-3 bg-[#f0fdf4] border border-[#86efac] rounded-[6px] text-xs flex items-center justify-between text-[#166534]">
+              <div className="flex items-center gap-2">
+                <Stethoscope className="w-4 h-4 text-[#16a34a]" />
+                <span>Connected with <strong>{assignedDoctor.name}</strong></span>
+              </div>
+              <span className="font-mono text-[10px] bg-white px-2 py-0.5 rounded border border-[#bbf7d0]">
+                Peer ID: {assignedDoctor.peer_id}
+              </span>
+            </div>
+          )}
+          <VideoConsultation
+            role="patient"
+            sessionId={sessionId}
+            targetDoctorPeerId={assignedDoctor?.peer_id || undefined}
+            onCallEnded={() => {
+              setConsultStatus('ended');
+              onRefreshSession();
+            }}
+          />
         </div>
       ) : (
         <>
+          {/* Waiting Room Queue Card if currently queued */}
+          {consultStatus === 'waiting' && (
+            <div className="mb-4 bg-gradient-to-r from-[#f0fdfa] to-[#e6fffa] border border-[#99f6e4] rounded-[6px] p-5 shadow-xs text-center">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[#0f766e]/10 text-[#0f766e] mb-3">
+                <Users className="w-6 h-6 animate-pulse" />
+              </div>
+              <div className="text-xs font-bold uppercase tracking-wider text-[#0f766e] mb-1">
+                You are in the Clinician Waiting Queue
+              </div>
+              <h3 className="text-2xl font-bold text-[#0f172a] mb-1">
+                Queue Position #{queuePosition > 0 ? queuePosition : 1}
+              </h3>
+              <p className="text-xs text-[#475569] max-w-md mx-auto">
+                An attending doctor is reviewing your intake data and will connect with you momentarily. Please keep this screen open.
+              </p>
+              <div className="mt-4 flex items-center justify-center gap-2 text-[11px] text-[#0f766e]">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span>Checking clinician availability every 2 seconds...</span>
+              </div>
+            </div>
+          )}
+
           {/* Consent Notice */}
           <ConsentNotice
             accepted={consentAccepted}
@@ -499,6 +612,63 @@ export const PatientIntake: React.FC<PatientIntakeProps> = ({
                   </div>
                 </div>
               </form>
+            </div>
+
+            {/* Consultation Request Action Bar */}
+            <div className="bg-[#f0fdfa] border-t border-[#ccfbf1] p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-[#0f766e]/10 text-[#0f766e] flex items-center justify-center shrink-0 border border-[#0f766e]/20">
+                  <Stethoscope className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-[#0f172a]">
+                    {consultStatus === 'waiting'
+                      ? 'Waiting for an available clinician...'
+                      : consultStatus === 'matched'
+                      ? 'Clinician Matched & Waiting!'
+                      : 'Done with symptom intake?'}
+                  </div>
+                  <div className="text-[11px] text-[#64748b]">
+                    {consultStatus === 'waiting'
+                      ? `Position #${queuePosition} in queue. You will be connected automatically.`
+                      : consultStatus === 'matched'
+                      ? `Dr. ${assignedDoctor?.name || 'Clinician'} is ready to consult with you.`
+                      : 'Connect directly with an attending doctor via encrypted peer-to-peer video.'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0">
+                {consultStatus === 'waiting' ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="w-full sm:w-auto px-4 py-2 rounded-[4px] bg-[#94a3b8] text-white text-xs font-bold flex items-center justify-center gap-2 cursor-not-allowed"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>In Queue (#{queuePosition})</span>
+                  </button>
+                ) : consultStatus === 'matched' ? (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('video')}
+                    className="w-full sm:w-auto px-4 py-2 rounded-[4px] bg-[#16a34a] hover:bg-[#15803d] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                  >
+                    <Video className="w-3.5 h-3.5" />
+                    <span>Join Consultation Video</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleRequestConsultation}
+                    disabled={isRequestingConsult}
+                    className="w-full sm:w-auto px-4 py-2 rounded-[4px] bg-[#0f766e] hover:bg-[#115e59] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs cursor-pointer disabled:opacity-50"
+                  >
+                    <PhoneCall className="w-3.5 h-3.5" />
+                    <span>{isRequestingConsult ? 'Requesting...' : 'Request Consultation'}</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </>
