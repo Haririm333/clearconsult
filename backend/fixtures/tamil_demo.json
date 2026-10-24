@@ -1,0 +1,67 @@
+{
+  "language": "ta",
+  "extracted_fields": {
+    "chief_complaint": {
+      "value": "இருமல் மற்றும் மூச்சுத்திணறல் (Cough and breathlessness)",
+      "status": "known",
+      "evidence": "எனக்கு 4 நாளா கடுமையான இருமலும் மூச்சுத்திணறலும் இருக்கு",
+      "source": "patient said"
+    },
+    "onset": {
+      "value": null,
+      "status": "unknown",
+      "evidence": null,
+      "source": "inferred",
+      "prompt_hint": "Whether onset was sudden or gradual"
+    },
+    "duration": {
+      "value": "4 days",
+      "status": "known",
+      "evidence": "4 நாளா",
+      "source": "patient said"
+    },
+    "severity": {
+      "value": null,
+      "numeric_scale": null,
+      "status": "unknown",
+      "evidence": "கடுமையான (described qualitatively as severe, numeric 0-10 not specified)",
+      "source": "inferred",
+      "prompt_hint": "Severity scale from 0 to 10"
+    },
+    "associated_symptoms": {
+      "value": ["மூச்சுத்திணறல் (Breathlessness / Shortness of breath)"],
+      "status": "known",
+      "evidence": "மூச்சுத்திணறலும் இருக்கு",
+      "source": "patient said"
+    },
+    "relevant_negatives": {
+      "value": [],
+      "status": "unknown",
+      "evidence": null,
+      "source": "inferred",
+      "prompt_hint": "Fever, chest pain, hemoptysis not yet reported or denied"
+    },
+    "medications": {
+      "value": [],
+      "status": "unknown",
+      "evidence": null,
+      "source": "inferred",
+      "prompt_hint": "Current medications or inhaler use unknown"
+    }
+  },
+  "highest_priority_unknown": {
+    "field": "severity_and_fever",
+    "question": "உங்களுக்கு காய்ச்சல் இருக்கிறதா? உங்கள் மூச்சுத்திணறலின் தீவிரத்தை 0 முதல் 10 வரை எப்படி குறிப்பிடுவீர்கள்?",
+    "question_en": "Do you have a fever? On a scale of 0 to 10, how severe is your breathlessness?"
+  },
+  "patient_language": "ta",
+  "needs_attention": [
+    {
+      "id": "RF-02",
+      "name": "Severe or Progressive Breathlessness",
+      "message": "High severity or progressive respiratory distress reported. Clinician must assess airway patency and respiratory effort immediately.",
+      "source": "DRAFT - requires clinician review",
+      "severity_level": "critical"
+    }
+  ]
+}

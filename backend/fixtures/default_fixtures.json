@@ -1,0 +1,129 @@
+{
+  "chest_pain_demo": {
+    "language": "en",
+    "extracted_fields": {
+      "chief_complaint": {
+        "value": "Central chest tightness and breathlessness",
+        "status": "known",
+        "evidence": "I have had heavy central chest pain and feeling breathless since morning",
+        "source": "patient said"
+      },
+      "onset": {
+        "value": "This morning",
+        "status": "known",
+        "evidence": "since morning",
+        "source": "patient said"
+      },
+      "duration": {
+        "value": "Approx. 4 hours",
+        "status": "known",
+        "evidence": "started around 8am today",
+        "source": "patient said"
+      },
+      "severity": {
+        "value": "8/10",
+        "numeric_scale": 8,
+        "status": "known",
+        "evidence": "it is an 8 out of 10",
+        "source": "patient said"
+      },
+      "associated_symptoms": {
+        "value": ["Breathlessness", "Diaphoresis / sweating"],
+        "status": "known",
+        "evidence": "feeling breathless and sweating",
+        "source": "patient said"
+      },
+      "relevant_negatives": {
+        "value": ["No cough", "No fever"],
+        "status": "known",
+        "evidence": "no cough and no fever",
+        "source": "patient said"
+      },
+      "medications": {
+        "value": [],
+        "status": "unknown",
+        "evidence": null,
+        "source": "inferred",
+        "prompt_hint": "Prior cardiac medications or aspirin unknown"
+      }
+    },
+    "highest_priority_unknown": {
+      "field": "medications",
+      "question": "Are you currently taking any regular medications or did you take any aspirin or spray today?",
+      "question_en": "Are you currently taking any regular medications or did you take any aspirin or spray today?"
+    },
+    "needs_attention": [
+      {
+        "id": "RF-01",
+        "name": "Chest Pain with Breathlessness",
+        "message": "Co-occurring chest pain and breathlessness reported. Requires urgent cardiac and pulmonary clinical evaluation.",
+        "source": "DRAFT - requires clinician review",
+        "severity_level": "critical"
+      }
+    ]
+  },
+  "hindi_demo": {
+    "language": "hi",
+    "extracted_fields": {
+      "chief_complaint": {
+        "value": "तेज़ सिरदर्द और उल्टी (Severe headache and vomiting)",
+        "status": "known",
+        "evidence": "मुझे आज सुबह से बहुत भयानक सिरदर्द है और उल्टी जैसा लग रहा है",
+        "source": "patient said"
+      },
+      "onset": {
+        "value": "अचानक आज सुबह (Sudden onset this morning)",
+        "status": "known",
+        "evidence": "आज सुबह अचानक शुरू हुआ",
+        "source": "patient said"
+      },
+      "duration": {
+        "value": "कुछ घंटे (Several hours)",
+        "status": "known",
+        "evidence": "सुबह से",
+        "source": "patient said"
+      },
+      "severity": {
+        "value": "9/10",
+        "numeric_scale": 9,
+        "status": "known",
+        "evidence": "दर्द 9 नंबर जितना तेज़ है",
+        "source": "patient said"
+      },
+      "associated_symptoms": {
+        "value": ["उल्टी (Nausea / Vomiting)"],
+        "status": "known",
+        "evidence": "उल्टी जैसा लग रहा है",
+        "source": "patient said"
+      },
+      "relevant_negatives": {
+        "value": [],
+        "status": "unknown",
+        "evidence": null,
+        "source": "inferred",
+        "prompt_hint": "गर्दन में अकड़न या बुखार के बारे में पुष्टि नहीं हुई है"
+      },
+      "medications": {
+        "value": [],
+        "status": "unknown",
+        "evidence": null,
+        "source": "inferred",
+        "prompt_hint": "कोई दवा ली है या नहीं"
+      }
+    },
+    "highest_priority_unknown": {
+      "field": "relevant_negatives",
+      "question": "क्या आपको गर्दन मोड़ने में दर्द या अकड़न (stiff neck) या बुखार महसूस हो रहा है?",
+      "question_en": "Do you feel any neck stiffness or pain when turning your head, or any fever?"
+    },
+    "needs_attention": [
+      {
+        "id": "RF-03",
+        "name": "Sudden Severe Headache",
+        "message": "Sudden onset severe headache ('thunderclap') reported. Clinician must rule out acute intracranial vascular pathology or hemorrhage.",
+        "source": "DRAFT - requires clinician review",
+        "severity_level": "critical"
+      }
+    ]
+  }
+}

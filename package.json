@@ -1,0 +1,11 @@
+{
+  "name": "clearconsult",
+  "version": "1.0.0",
+  "description": "ClearConsult Telemedicine Missing Information & Clinical Uncertainty Detector",
+  "private": true,
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "python run_backend.py"
+  }
+}

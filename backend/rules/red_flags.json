@@ -1,0 +1,110 @@
+[
+  {
+    "id": "RF-01",
+    "name": "Chest Pain with Breathlessness",
+    "conditions": {
+      "any_symptoms": ["chest pain", "chest tightness", "chest pressure", "retrosternal pain", "angina", "நெஞ்சு வலி", "நெஞ்சு பாரம்", "सीने में दर्द", "छाती में दर्द"],
+      "and_symptoms": ["breathlessness", "shortness of breath", "dyspnea", "difficulty breathing", "மூச்சுத்திணறல்", "மூச்சு திணறல்", "सांस लेने में तकलीफ", "सांस फूलना"]
+    },
+    "message": "Co-occurring chest pain and breathlessness reported. Requires urgent cardiac and pulmonary clinical evaluation.",
+    "source": "DRAFT - requires clinician review",
+    "severity_level": "critical"
+  },
+  {
+    "id": "RF-02",
+    "name": "Severe or Progressive Breathlessness",
+    "conditions": {
+      "any_symptoms": ["breathlessness", "shortness of breath", "dyspnea", "difficulty breathing", "suffocation", "மூச்சுத்திணறல்", "மூச்சு திணறல்", "सांस लेने में तकलीफ", "सांस फूलना"],
+      "min_severity": 7
+    },
+    "message": "High severity or progressive respiratory distress reported (severity >= 7/10 or severe/கடுமையான). Clinician must assess airway patency and respiratory effort immediately.",
+    "source": "DRAFT - requires clinician review",
+    "severity_level": "critical"
+  },
+  {
+    "id": "RF-03",
+    "name": "Sudden Severe Headache",
+    "conditions": {
+      "any_symptoms": ["headache", "head pain", "migraine", "தலைவலி", "கடுமையான தலைவலி", "सिरदर्द"],
+      "onset_keywords": ["sudden", "thunderclap", "instant", "abrupt", "rapid", "worst headache", "திடீரென்று", "அचानक", "अचानक"],
+      "min_severity": 7
+    },
+    "message": "Sudden onset severe headache ('thunderclap') reported. Clinician must rule out acute intracranial vascular pathology or hemorrhage.",
+    "source": "DRAFT - requires clinician review",
+    "severity_level": "critical"
+  },
+  {
+    "id": "RF-04",
+    "name": "Fever with Meningism / Neurological Signs",
+    "conditions": {
+      "any_symptoms": ["fever", "high temperature", "pyrexia", "chills", "காய்ச்சல்", "உடல் சூடு", "बुखार"],
+      "and_symptoms": ["stiff neck", "neck pain", "neck stiffness", "confusion", "altered mental", "photophobia", "drowsiness", "கழுத்து வலி", "கழுத்து விறைப்பு", "गर्दन में अकड़न", "गर्दन दर्द"]
+    },
+    "message": "Fever combined with neck stiffness or acute neurological changes. Urgent screening for central nervous system infection (meningitis / encephalitis) required.",
+    "source": "DRAFT - requires clinician review",
+    "severity_level": "critical"
+  },
+  {
+    "id": "RF-05",
+    "name": "Acute Severe Abdominal Pain",
+    "conditions": {
+      "any_symptoms": ["abdominal pain", "stomach pain", "belly pain", "severe cramps", "வயிற்று வலி", "पेट दर्द"],
+      "min_severity": 8
+    },
+    "message": "Severe acute abdominal pain (severity >= 8/10) reported. Requires urgent physical evaluation to exclude surgical acute abdomen or perforation.",
+    "source": "DRAFT - requires clinician review",
+    "severity_level": "warning"
+  },
+  {
+    "id": "RF-06",
+    "name": "Focal Neurological Deficit",
+    "conditions": {
+      "any_symptoms": ["facial droop", "slurred speech", "arm weakness", "leg weakness", "one-sided numbness", "loss of vision", "hemiparesis", "வாய் கோணல்", "பேச்சு குளறுதல்", "लकवा", "कमजोरी"]
+    },
+    "message": "Focal neurological deficit reported. Urgent stroke assessment (FAST protocol) and immediate clinical triage required.",
+    "source": "DRAFT - requires clinician review",
+    "severity_level": "critical"
+  },
+  {
+    "id": "RF-07",
+    "name": "Airway Compromise / Anaphylaxis",
+    "conditions": {
+      "any_symptoms": ["throat tightness", "swollen tongue", "swollen lips", "stridor", "unable to swallow", "throat swelling", "தொண்டை அடைப்பு", "நாக்கு வீக்கம்", "गले में सूजन"]
+    },
+    "message": "Potential upper airway obstruction or acute anaphylaxis reported. Immediate clinical evaluation of airway patency required.",
+    "source": "DRAFT - requires clinician review",
+    "severity_level": "critical"
+  },
+  {
+    "id": "RF-08",
+    "name": "Prolonged Persistent Fever (> 7 days)",
+    "conditions": {
+      "any_symptoms": ["fever", "high temperature", "chills", "காய்ச்சல்", "बुखार"],
+      "min_duration_days": 7
+    },
+    "message": "Persistent fever duration exceeding 7 days reported without clear etiology. Comprehensive diagnostic clinical workup recommended.",
+    "source": "DRAFT - requires clinician review",
+    "severity_level": "warning"
+  },
+  {
+    "id": "RF-09",
+    "name": "Active Bleeding / Hemoptysis",
+    "conditions": {
+      "any_symptoms": ["coughing blood", "blood in sputum", "hemoptysis", "vomiting blood", "black tarry stool", "rectal bleeding", "இருமல் ரத்தம்", "இரத்தம் வருதல்", "खांसी में खून"]
+    },
+    "message": "Active respiratory or gastrointestinal bleeding reported. Immediate clinical assessment of hemodynamic stability required.",
+    "source": "DRAFT - requires clinician review",
+    "severity_level": "critical"
+  },
+  {
+    "id": "RF-10",
+    "name": "Discordant or Unverified Respiratory Status",
+    "conditions": {
+      "any_symptoms": ["breathlessness", "shortness of breath", "dyspnea", "breathing difficulty", "மூச்சுத்திணறல்", "सांस लेने में तकलीफ"],
+      "flag_type": "mismatch_or_unconfirmed"
+    },
+    "message": "Breathlessness reported by patient but visual vitals cannot confirm or are discordant. Video cannot rule out respiratory compromise; direct clinician assessment required.",
+    "source": "DRAFT - requires clinician review",
+    "severity_level": "warning"
+  }
+]

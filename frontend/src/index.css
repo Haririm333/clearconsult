@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-clinical: #f8faf9;
+    --card-clinical: #ffffff;
+    --border-clinical: #e2e8f0;
+    --teal-primary: #0f766e;
+    --teal-hover: #115e59;
+    --teal-light: #f0fdfa;
+    --teal-border: #99f6e4;
+    --amber-bg: #fffbeb;
+    --amber-border: #fcd34d;
+    --amber-text: #b45309;
+    --red-bg: #fef2f2;
+    --red-border: #fca5a5;
+    --red-text: #b91c1c;
+    --text-primary: #0f172a;
+    --text-muted: #64748b;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-clinical);
+    color: var(--text-primary);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "tnum" 1, "cv02" 1, "cv03" 1, "cv04" 1;
+  }
+
+  #root {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Tabular figures for numbers */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
